@@ -1,5 +1,6 @@
 # Jalankan semua sistem di background
 up:
+	@chmod +x scripts/*.sh 2>/dev/null || true
 	docker compose up -d --build
 
 # Matikan semua sistem & kosongkan VRAM

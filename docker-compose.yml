@@ -35,7 +35,7 @@ services:
       - ./models/comfyui:/root/ComfyUI/models
       - ./logs:/root/ComfyUI/user/logs
       - ./scripts/init-comfy.sh:/init-comfy.sh
-    entrypoint: ["/bin/bash", "/init-comfy.sh"]
+    entrypoint: ["/bin/bash", "-c", "chmod +x /init-comfy.sh && /init-comfy.sh"]
     ports:
       - "${COMFY_PORT}:8188"
     deploy:
