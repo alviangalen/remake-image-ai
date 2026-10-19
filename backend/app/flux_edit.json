@@ -1,0 +1,53 @@
+{
+  "6": {
+    "inputs": { "text": "instruksi edit", "clip": ["11", 0] },
+    "class_type": "CLIPTextEncode"
+  },
+  "8": {
+    "inputs": { "samples": ["17", 0], "vae": ["12", 0] },
+    "class_type": "VAEDecode"
+  },
+  "9": {
+    "inputs": { "filename_prefix": "VictusEdit", "images": ["8", 0] },
+    "class_type": "SaveImage"
+  },
+  "10": {
+    "inputs": { "image": "input.png", "upload": "image" },
+    "class_type": "LoadImage"
+  },
+  "11": {
+    "inputs": {
+      "clip_name1": "t5xxl_fp8_e4m3fn.safetensors",
+      "clip_name2": "clip_l.safetensors",
+      "type": "flux"
+    },
+    "class_type": "DualCLIPLoader"
+  },
+  "12": {
+    "inputs": { "vae_name": "ae.safetensors" },
+    "class_type": "VAELoader"
+  },
+  "13": {
+    "inputs": { "unet_name": "flux1-kontext-dev-Q4_K_S.gguf" },
+    "class_type": "UnetLoaderGGUF"
+  },
+  "16": {
+    "inputs": { "pixels": ["10", 0], "vae": ["12", 0] },
+    "class_type": "VAEEncode"
+  },
+  "17": {
+    "inputs": {
+      "seed": 42,
+      "steps": 20,
+      "cfg": 1.0,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 0.60,
+      "model": ["13", 0],
+      "positive": ["6", 0],
+      "negative": ["6", 0],
+      "latent_image": ["16", 0]
+    },
+    "class_type": "KSampler"
+  }
+}
