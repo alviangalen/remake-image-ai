@@ -24,9 +24,10 @@ services:
       timeout: 5s
       retries: 5
 
+  
   # 2. MESIN EDIT GAMBAR (ComfyUI Headless)
   comfyui:
-    image: yanwk/comfyui-boot:cu124-slim
+    image: yanwk/comfyui-boot:cu130-slim-v2
     container_name: victus_comfy
     restart: unless-stopped
     environment:
@@ -34,8 +35,8 @@ services:
     volumes:
       - ./models/comfyui:/root/ComfyUI/models
       - ./logs:/root/ComfyUI/user/logs
-      - ./scripts/init-comfy.sh:/init-comfy.sh
-    entrypoint: ["/bin/bash", "-c", "chmod +x /init-comfy.sh && /init-comfy.sh"]
+      - ./scripts/comfy-pre-start.sh:/root/user-scripts/pre-start.sh
+      - ./custom_nodes/ComfyUI-GGUF:/root/ComfyUI/custom_nodes/ComfyUI-GGUF
     ports:
       - "${COMFY_PORT}:8188"
     deploy:
