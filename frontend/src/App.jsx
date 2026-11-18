@@ -39,6 +39,13 @@ export default function App() {
   const [messages, setMessages] = useState([
     { role: 'assistant', text: 'Halo! Mode Chat aktif. Begitu aku selesai menjawab, VRAM langsung dikosongkan otomatis.' }
   ]);
+  const chatEndRef = useRef(null);
+
+  useEffect(() => {
+    if (mode === 'chat') {
+      chatEndRef.current?.scrollIntoView({ behavior: 'auto' });
+    }
+  }, [messages, mode]);
 
   const addLog = (msg) => {
     const time = new Date().toLocaleTimeString('id-ID', { hour12: false });
@@ -130,18 +137,48 @@ export default function App() {
     if (!chatInput.trim() || loading) return;
 
     const userText = chatInput;
+    const assistantId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     setChatInput('');
-    setMessages((prev) => [...prev, { role: 'user', text: userText }]);
+    setMessages((prev) => [
+      ...prev,
+      { role: 'user', text: userText },
+      { id: assistantId, role: 'assistant', text: '', streaming: true },
+    ]);
     setLoading(true);
     addLog(`[VRAM GUARD] Mengalihkan GPU ke Ollama (Qwen 2.5)...`);
 
+    let firstTokenLogged = false;
     try {
-      const res = await apiClient.sendChat(userText);
-      setMessages((prev) => [...prev, { role: 'assistant', text: res.response }]);
+      await apiClient.sendChatStream(userText, (_token, fullText) => {
+        if (!firstTokenLogged) {
+          firstTokenLogged = true;
+          addLog(`[STREAM] Qwen 2.5 mulai mengirim teks...`);
+        }
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, text: fullText } : m))
+        );
+      });
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId
+            ? { ...m, streaming: false, text: m.text || '(Tidak ada respons dari model)' }
+            : m
+        )
+      );
       addLog(`[SUCCESS] Ollama selesai menjawab & keluar dari VRAM.`);
     } catch (err) {
       addLog(`[ERROR] Chat gagal: ${err.message}`);
-      setMessages((prev) => [...prev, { role: 'assistant', text: `Error: ${err.message}` }]);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId
+            ? {
+                ...m,
+                streaming: false,
+                text: m.text ? `${m.text}\n\n[Error: ${err.message}]` : `Error: ${err.message}`,
+              }
+            : m
+        )
+      );
     } finally {
       setLoading(false);
     }
@@ -397,14 +434,27 @@ export default function App() {
           <div className="flex-1 flex flex-col bg-zinc-900/40 border border-zinc-800 rounded-xl overflow-hidden">
             <div className="flex-1 p-5 overflow-y-auto space-y-4 max-h-[480px]">
               {messages.map((m, idx) => (
-                <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div key={m.id || idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-2xl px-4 py-2.5 rounded-xl text-sm whitespace-pre-wrap ${
                     m.role === 'user' ? 'bg-emerald-500 text-black font-medium' : 'bg-zinc-800 text-zinc-100'
                   }`}>
-                    {m.text}
+                    {m.role === 'assistant' && m.streaming && !m.text ? (
+                      <span className="inline-flex items-center gap-2 text-zinc-400">
+                        <RefreshCw size={14} className="animate-spin text-emerald-400" />
+                        Memuat model &amp; menyusun jawaban...
+                      </span>
+                    ) : (
+                      <>
+                        {m.text}
+                        {m.streaming && (
+                          <span className="inline-block w-1.5 h-4 ml-1 align-middle bg-emerald-400 animate-pulse" />
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
+              <div ref={chatEndRef} />
             </div>
             <form onSubmit={handleSendChat} className="p-3 bg-zinc-900 border-t border-zinc-800 flex gap-2">
               <input
@@ -419,7 +469,7 @@ export default function App() {
                 disabled={loading}
                 className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-black font-semibold px-5 py-2 rounded-lg text-sm"
               >
-                Kirim
+                {loading ? 'Mengetik...' : 'Kirim'}
               </button>
             </form>
           </div>

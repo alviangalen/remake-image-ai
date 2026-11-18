@@ -1,7 +1,7 @@
-# Jalankan semua sistem di background
+# Jalankan semua sistem: tampilkan progres build & auto-download model di CLI, lalu jalan di background setelah siap
 up:
 	@chmod +x scripts/*.sh 2>/dev/null || true
-	docker compose up -d --build
+	docker compose up --build --wait --wait-timeout 7200
 
 # Matikan semua sistem & kosongkan VRAM
 down:

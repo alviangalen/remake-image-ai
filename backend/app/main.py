@@ -1,12 +1,14 @@
 import asyncio
+import json
 import os
 import time
 import uuid
 from typing import Optional
+import anyio
 import httpx
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from vram_manager import VRAMGuard, logging
 from services.comfy_svc import ComfyService
 from services.ollama_svc import OllamaService
@@ -209,6 +211,64 @@ async def chat_llm(prompt: str = Form(...)):
         finally:
             await guard.flush_ollama()
             guard.active_engine = "IDLE"
+
+
+@app.post("/api/chat/stream")
+async def chat_llm_stream(prompt: str = Form(...)):
+    if not prompt.strip():
+        raise HTTPException(status_code=400, detail="Prompt tidak boleh kosong.")
+
+    async def event_stream():
+        # Acquire VRAMGuard inside the generator so the lock stays held
+        # for the entire lifetime of the token stream, not just response startup.
+        async with guard.lock:
+            try:
+                await guard.switch_to("OLLAMA")
+                async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0)) as client:
+                    async with client.stream(
+                        "POST",
+                        f"{guard.ollama_url}/api/generate",
+                        json={
+                            "model": guard.llm_model,
+                            "prompt": prompt,
+                            "stream": True,
+                            "keep_alive": 0,
+                        },
+                    ) as res:
+                        res.raise_for_status()
+                        async for line in res.aiter_lines():
+                            if not line:
+                                continue
+                            chunk = json.loads(line)
+                            if chunk.get("error"):
+                                yield json.dumps({"error": chunk["error"], "done": True}) + "\n"
+                                break
+                            yield json.dumps({
+                                "response": chunk.get("response", ""),
+                                "done": bool(chunk.get("done", False)),
+                            }) + "\n"
+            except asyncio.CancelledError:
+                logging.info("Chat stream terputus oleh client.")
+                raise
+            except Exception as e:
+                logging.error(f"Error chat stream: {e}")
+                yield json.dumps({"error": str(e), "done": True}) + "\n"
+            finally:
+                with anyio.CancelScope(shield=True):
+                    try:
+                        await guard.flush_ollama()
+                    except Exception as flush_err:
+                        logging.warning(f"Error flush Ollama setelah stream: {flush_err}")
+                guard.active_engine = "IDLE"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.post("/api/edit-image")
