@@ -2,7 +2,7 @@
 
 ## 1. Spesifikasi Environment Aktif (JANGAN DIUBAH KE VERSI LAMA)
 - **Hardware:** HP Victus (Ryzen 9 8945HS + RTX 4060 8GB VRAM + 16GB DDR5 + 120GB Ext SSD)
-- **ComfyUI Image:** `yanwk/comfyui-boot:cu130-slim-v2` (Python 3.13, PyTorch 2.13.0+cu130)
+- **ComfyUI Image:** `yanwk/comfyui-boot:cu126-slim` (Python 3.12, CUDA 12.6 — kompatibel dengan NVIDIA Driver 550.163.01 host)
 - **Pre-start Script:** Hanya memeriksa Python, PyTorch, dan `comfy_aimdo.control`. DILARANG menambahkan `apt-get`, `find`, atau instalasi pip yang merusak dependensi bawaan image.
 - **Custom Nodes:** `city96/ComfyUI-GGUF` di-mount langsung dari host `custom_nodes/ComfyUI-GGUF` ke container.
 - **Workflow Path:** File workflow aktif berada di `/app/flux_edit.json` (`backend/app/flux_edit.json`).

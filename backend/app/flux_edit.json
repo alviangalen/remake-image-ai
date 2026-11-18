@@ -101,7 +101,7 @@
   },
   "35": {
     "inputs": {
-      "guidance": 3.5,
+      "guidance": 2.5,
       "conditioning": [
         "41",
         0

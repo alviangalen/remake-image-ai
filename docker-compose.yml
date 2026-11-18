@@ -27,7 +27,7 @@ services:
   
   # 2. MESIN EDIT GAMBAR (ComfyUI Headless)
   comfyui:
-    image: yanwk/comfyui-boot:cu130-slim-v2
+    image: yanwk/comfyui-boot:cu126-slim
     container_name: victus_comfy
     restart: unless-stopped
     environment:

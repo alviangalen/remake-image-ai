@@ -11,7 +11,7 @@ export default function App() {
   
   // Telemetry & Logs buat Troubleshooting
   const [health, setHealth] = useState({ active_vram_owner: 'IDLE', ollama: false, comfyui: false });
-  const [logs, setLogs] = useState(['[SYSTEM] Victus AI Studio siap. Menunggu instruksi...']);
+  const [logs, setLogs] = useState(['[SYSTEM] AI Studio siap. Menunggu instruksi...']);
   const [loading, setLoading] = useState(false);
 
   // State Image Editor
@@ -19,14 +19,25 @@ export default function App() {
   const [sourcePreview, setSourcePreview] = useState(null);
   const [resultImage, setResultImage] = useState(null);
   const [imagePrompt, setImagePrompt] = useState('');
-  const [denoise, setDenoise] = useState(0.60);
+  const [denoise, setDenoise] = useState(1.0);
+  const [guidance, setGuidance] = useState(2.5);
+  const [seedInput, setSeedInput] = useState('');
+  const [editProgress, setEditProgress] = useState(null);
   const [showOriginal, setShowOriginal] = useState(false);
   const fileInputRef = useRef(null);
+
+  const formatDuration = (sec) => {
+    if (sec === null || sec === undefined || Number.isNaN(sec)) return 'Menghitung...';
+    const total = Math.max(0, Math.round(sec));
+    const mins = Math.floor(total / 60);
+    const rem = total % 60;
+    return mins > 0 ? `${mins}m ${String(rem).padStart(2, '0')}d` : `${rem}d`;
+  };
 
   // State LLM Chat
   const [chatInput, setChatInput] = useState('');
   const [messages, setMessages] = useState([
-    { role: 'assistant', text: 'Halo! Mode Chat aktif. Begitu aku selesai menjawab, VRAM RTX 4060 akan langsung dikosongkan otomatis.' }
+    { role: 'assistant', text: 'Halo! Mode Chat aktif. Begitu aku selesai menjawab, VRAM langsung dikosongkan otomatis.' }
   ]);
 
   const addLog = (msg) => {
@@ -53,6 +64,8 @@ export default function App() {
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (sourcePreview) URL.revokeObjectURL(sourcePreview);
+    if (resultImage) URL.revokeObjectURL(resultImage);
     setSourceFile(file);
     setSourcePreview(URL.createObjectURL(file));
     setResultImage(null);
@@ -65,20 +78,49 @@ export default function App() {
     if (!sourceFile || !imagePrompt.trim() || loading) return;
 
     setLoading(true);
-    addLog(`[VRAM GUARD] Mengalihkan RTX 4060 ke ComfyUI...`);
-    addLog(`[PROMPT] "${imagePrompt}" (Denoise: ${denoise})`);
+    setEditProgress({
+      progress: 2,
+      step: 0,
+      total_steps: 20,
+      stage: 'queued',
+      message: 'Mengirim instruksi ke server...',
+      elapsed_seconds: 0,
+      eta_seconds: null,
+    });
+    addLog(`[VRAM GUARD] Mengalihkan GPU ke ComfyUI...`);
+    addLog(`[PROMPT] "${imagePrompt}" (Denoise: ${denoise}, Guidance: ${guidance}${seedInput ? `, Seed: ${seedInput}` : ''})`);
 
+    let lastLoggedStage = '';
     try {
       const startTime = performance.now();
-      const outputUrl = await apiClient.editImage(sourceFile, imagePrompt, denoise);
+      const parsedSeed = seedInput.trim() === '' ? null : parseInt(seedInput, 10);
+      const result = await apiClient.editImageWithProgress(
+        sourceFile,
+        imagePrompt,
+        denoise,
+        guidance,
+        parsedSeed,
+        (status) => {
+          setEditProgress(status);
+          if (status.stage && status.stage !== lastLoggedStage && status.stage !== 'sampling') {
+            lastLoggedStage = status.stage;
+            addLog(`[PROGRESS ${status.progress}%] ${status.message}`);
+          } else if (status.stage === 'sampling' && lastLoggedStage !== 'sampling') {
+            lastLoggedStage = 'sampling';
+            addLog(`[SAMPLING] Memulai difusi ${status.total_steps} langkah...`);
+          }
+        }
+      );
       const duration = ((performance.now() - startTime) / 1000).toFixed(1);
-      
-      setResultImage(outputUrl);
-      addLog(`[SUCCESS] Selesai dirender dalam ${duration} detik! VRAM dikosongkan kembali.`);
+
+      if (resultImage) URL.revokeObjectURL(resultImage);
+      setResultImage(result.url);
+      addLog(`[SUCCESS] Selesai dirender dalam ${result.elapsed || duration} detik! (Seed: ${result.seed || 'random'}) VRAM dikosongkan kembali.`);
     } catch (err) {
       addLog(`[ERROR] Gagal edit gambar: ${err.message}`);
     } finally {
       setLoading(false);
+      setEditProgress(null);
     }
   };
 
@@ -91,7 +133,7 @@ export default function App() {
     setChatInput('');
     setMessages((prev) => [...prev, { role: 'user', text: userText }]);
     setLoading(true);
-    addLog(`[VRAM GUARD] Mengalihkan RTX 4060 ke Ollama (Qwen 2.5)...`);
+    addLog(`[VRAM GUARD] Mengalihkan GPU ke Ollama (Qwen 2.5)...`);
 
     try {
       const res = await apiClient.sendChat(userText);
@@ -107,14 +149,14 @@ export default function App() {
 
   // Handler Kuras Paksa VRAM
   const handleFlushVRAM = async () => {
-    addLog(`[MANUAL FLUSH] Menguras paksa VRAM RTX 4060...`);
+    addLog(`[MANUAL FLUSH] Menguras paksa VRAM GPU..`);
     await apiClient.flushVRAM();
     addLog(`[MANUAL FLUSH] VRAM bersih (0 MB)!`);
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-zinc-950 text-zinc-100">
-      {/* 1. HEADER & MONITOR VRAM RTX 4060 */}
+      {/* 1. HEADER & MONITOR VRAM GPU */}
       <header className="border-b border-zinc-800 bg-zinc-900/60 backdrop-blur px-6 py-3 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
@@ -122,9 +164,9 @@ export default function App() {
           </div>
           <div>
             <h1 className="font-bold text-sm tracking-wide flex items-center gap-2">
-              VICTUS AI STUDIO
+              AI STUDIO
               <span className="text-[10px] font-mono bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded">
-                RTX 4060 8GB
+                NVIDIA
               </span>
             </h1>
             <p className="text-xs text-zinc-400">Zero-Conflict VRAM Swapping Architecture</p>
@@ -212,11 +254,40 @@ export default function App() {
                   />
 
                   {loading && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                      <div className="h-10 w-10 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-                      <span className="text-xs font-mono bg-black/80 px-3 py-1.5 rounded-md border border-zinc-700">
-                        RTX 4060 sedang memproses pixel...
-                      </span>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
+                      <div className="w-full max-w-md bg-zinc-950/90 backdrop-blur-md border border-zinc-700/80 rounded-xl p-4 shadow-2xl flex flex-col gap-3">
+                        <div className="flex items-center justify-between text-xs font-mono">
+                          <span className="text-emerald-400 font-semibold flex items-center gap-2">
+                            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-ping" />
+                            {editProgress?.stage === 'sampling' && editProgress?.total_steps
+                              ? `SAMPLING ${editProgress.step}/${editProgress.total_steps}`
+                              : (editProgress?.stage || 'MEMPROSES').toUpperCase()}
+                          </span>
+                          <span className="text-zinc-100 font-bold text-sm">
+                            {editProgress?.progress ?? 0}%
+                          </span>
+                        </div>
+
+                        <div className="w-full h-2.5 bg-zinc-800 rounded-full overflow-hidden border border-zinc-700/60">
+                          <div
+                            className="h-full bg-gradient-to-r from-emerald-500 to-teal-300 transition-all duration-500 ease-out"
+                            style={{ width: `${Math.max(2, Math.min(100, editProgress?.progress ?? 2))}%` }}
+                          />
+                        </div>
+
+                        <p className="text-xs text-zinc-200 truncate">
+                          {editProgress?.message || 'GPU sedang memproses pixel...'}
+                        </p>
+
+                        <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400 border-t border-zinc-800 pt-2">
+                          <span>Berjalan: {formatDuration(editProgress?.elapsed_seconds ?? 0)}</span>
+                          <span>
+                            {editProgress?.eta_seconds != null
+                              ? `Estimasi sisa: ~${formatDuration(editProgress.eta_seconds)}`
+                              : 'Menyiapkan estimasi...'}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   )}
 
@@ -234,7 +305,7 @@ export default function App() {
                         </button>
                         <a
                           href={resultImage}
-                          download="victus-ai-edit.png"
+                          download="ai-edit.png"
                           className="bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5"
                         >
                           <Download size={14} /> Simpan
@@ -242,7 +313,13 @@ export default function App() {
                       </>
                     )}
                     <button
-                      onClick={() => { setSourceFile(null); setSourcePreview(null); setResultImage(null); }}
+                      onClick={() => {
+                        if (sourcePreview) URL.revokeObjectURL(sourcePreview);
+                        if (resultImage) URL.revokeObjectURL(resultImage);
+                        setSourceFile(null);
+                        setSourcePreview(null);
+                        setResultImage(null);
+                      }}
                       className="bg-black/80 hover:bg-red-500/80 p-1.5 rounded-lg border border-zinc-700 transition"
                       title="Ganti gambar"
                     >
@@ -254,7 +331,7 @@ export default function App() {
               <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
             </div>
 
-            {/* Bar Prompt & Kontrol Denoise ala Gemini */}
+            {/* Bar Prompt & Kontrol FLUX.1 Kontext */}
             <form onSubmit={handleEditImage} className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl flex flex-col gap-3">
               <div className="flex items-center gap-3">
                 <input
@@ -269,23 +346,48 @@ export default function App() {
                   disabled={!sourceFile || !imagePrompt.trim() || loading}
                   className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-black font-semibold px-6 py-2.5 rounded-lg text-sm flex items-center gap-2 transition"
                 >
-                  <Sparkles size={16} /> {loading ? 'Memproses...' : 'Eksekusi Edit'}
+                  <Sparkles size={16} /> {loading ? `Memproses (${editProgress?.progress ?? 0}%)` : 'Eksekusi Edit'}
                 </button>
               </div>
 
-              <div className="flex items-center justify-between text-xs text-zinc-400 pt-1">
+              <div className="flex flex-wrap items-center justify-between gap-4 text-xs text-zinc-400 pt-1">
                 <div className="flex items-center gap-3">
-                  <span>Kekuatan Ubahan (Denoise): <strong className="text-emerald-400">{denoise}</strong></span>
+                  <span>Denoise: <strong className="text-emerald-400">{denoise.toFixed(2)}</strong></span>
                   <input
                     type="range"
-                    min="0.20"
-                    max="0.95"
+                    min="0.30"
+                    max="1.00"
                     step="0.05"
                     value={denoise}
                     onChange={(e) => setDenoise(parseFloat(e.target.value))}
-                    className="accent-emerald-500 w-36 cursor-pointer"
+                    className="accent-emerald-500 w-28 cursor-pointer"
                   />
-                  <span className="text-zinc-500">(0.3 = ubah tipis, 0.65 = ganti objek/baju, 0.85 = rombak total)</span>
+                  <span className="text-zinc-500">(1.00 = standar FLUX.1 Kontext)</span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span>Guidance: <strong className="text-emerald-400">{guidance.toFixed(1)}</strong></span>
+                  <input
+                    type="range"
+                    min="1.5"
+                    max="5.0"
+                    step="0.5"
+                    value={guidance}
+                    onChange={(e) => setGuidance(parseFloat(e.target.value))}
+                    className="accent-emerald-500 w-24 cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span>Seed:</span>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="Acak"
+                    value={seedInput}
+                    onChange={(e) => setSeedInput(e.target.value)}
+                    className="w-28 bg-zinc-950 border border-zinc-800 focus:border-emerald-500 rounded px-2 py-1 text-xs outline-none"
+                  />
                 </div>
               </div>
             </form>

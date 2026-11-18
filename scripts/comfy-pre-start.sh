@@ -2,7 +2,7 @@
 set -eu
 
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-PYTHON="/usr/bin/python3.13"
+PYTHON="/usr/bin/python3.12"
 GGUF_DIR="/root/ComfyUI/custom_nodes/ComfyUI-GGUF"
 REQ_FILE="$GGUF_DIR/requirements.txt"
 

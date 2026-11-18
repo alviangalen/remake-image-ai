@@ -2,21 +2,33 @@
   "6": {
     "inputs": {
       "text": "change her clothes to red color",
-      "clip": ["11", 0]
+      "clip": [
+        "11",
+        0
+      ]
     },
     "class_type": "CLIPTextEncode"
   },
   "8": {
     "inputs": {
-      "samples": ["17", 0],
-      "vae": ["12", 0]
+      "samples": [
+        "17",
+        0
+      ],
+      "vae": [
+        "12",
+        0
+      ]
     },
     "class_type": "VAEDecode"
   },
   "9": {
     "inputs": {
       "filename_prefix": "VictusEdit",
-      "images": ["8", 0]
+      "images": [
+        "8",
+        0
+      ]
     },
     "class_type": "SaveImage"
   },
@@ -29,8 +41,8 @@
   },
   "11": {
     "inputs": {
-      "clip_name1": "t5xxl_fp8_e4m3fn.safetensors",
-      "clip_name2": "clip_l.safetensors",
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
       "type": "flux"
     },
     "class_type": "DualCLIPLoader"
@@ -49,50 +61,106 @@
   },
   "16": {
     "inputs": {
-      "pixels": ["42", 0],
-      "vae": ["12", 0]
+      "pixels": [
+        "42",
+        0
+      ],
+      "vae": [
+        "12",
+        0
+      ]
     },
     "class_type": "VAEEncode"
   },
   "17": {
     "inputs": {
       "seed": 42,
-      "steps": 16,
+      "steps": 20,
       "cfg": 1.0,
       "sampler_name": "euler",
       "scheduler": "simple",
       "denoise": 1.0,
-      "model": ["13", 0],
-      "positive": ["41", 0],
-      "negative": ["40", 0],
-      "latent_image": ["16", 0]
+      "model": [
+        "13",
+        0
+      ],
+      "positive": [
+        "35",
+        0
+      ],
+      "negative": [
+        "40",
+        0
+      ],
+      "latent_image": [
+        "43",
+        0
+      ]
     },
     "class_type": "KSampler"
   },
   "35": {
     "inputs": {
-      "guidance": 3.5,
-      "conditioning": ["6", 0]
+      "guidance": 2.5,
+      "conditioning": [
+        "41",
+        0
+      ]
     },
     "class_type": "FluxGuidance"
   },
   "40": {
     "inputs": {
-      "conditioning": ["6", 0]
+      "conditioning": [
+        "6",
+        0
+      ]
     },
     "class_type": "ConditioningZeroOut"
   },
   "41": {
     "inputs": {
-      "conditioning": ["35", 0],
-      "latent": ["16", 0]
+      "conditioning": [
+        "6",
+        0
+      ],
+      "latent": [
+        "16",
+        0
+      ]
     },
     "class_type": "ReferenceLatent"
   },
   "42": {
     "inputs": {
-      "image": ["10", 0]
+      "image": [
+        "10",
+        0
+      ]
     },
     "class_type": "FluxKontextImageScale"
+  },
+  "44": {
+    "inputs": {
+      "image": [
+        "42",
+        0
+      ]
+    },
+    "class_type": "GetImageSize"
+  },
+  "43": {
+    "inputs": {
+      "width": [
+        "44",
+        0
+      ],
+      "height": [
+        "44",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage"
   }
 }

@@ -31,8 +31,8 @@ download_if_missing() {
     local FILENAME=$2
     local URL=$3
     mkdir -p "$TARGET_DIR"
-    if [ ! -f "$TARGET_DIR/$FILENAME" ]; then
-        echo "[INIT-COMFY] Mendownload $FILENAME..."
+    if [ ! -f "$TARGET_DIR/$FILENAME" ] || [ -f "$TARGET_DIR/$FILENAME.aria2" ]; then
+        echo "[INIT-COMFY] Mendownload / melanjutkan download $FILENAME..."
         aria2c -c -x 8 -s 8 --auto-file-renaming=false -d "$TARGET_DIR" -o "$FILENAME" "$URL"
     else
         echo "[INIT-COMFY] OK: $FILENAME sudah ada di SSD."
